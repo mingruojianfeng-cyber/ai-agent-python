@@ -1,0 +1,23 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    container_name: yu_ai_agent_pgvector
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: yu_ai_agent
+      POSTGRES_USER: yu_ai_agent
+      POSTGRES_PASSWORD: 123456
+      TZ: Asia/Shanghai
+    ports:
+      - "5432:5432"
+    volumes:
+      - yu_ai_agent_postgres_data:/var/lib/postgresql/data
+      - ./init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U yu_ai_agent -d yu_ai_agent"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  yu_ai_agent_postgres_data:
