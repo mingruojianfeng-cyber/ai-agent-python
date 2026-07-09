@@ -12,6 +12,12 @@ def test_chat_request_uses_default_chat_id() -> None:
     assert request.chat_id == "default"
 
 
+def test_chat_request_accepts_java_style_chat_id_alias() -> None:
+    request = ChatRequest(message="你好", chatId="java-style-id")
+
+    assert request.chat_id == "java-style-id"
+
+
 def test_chat_request_rejects_empty_message() -> None:
     with pytest.raises(ValidationError):
         ChatRequest(message="")

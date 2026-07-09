@@ -1,6 +1,9 @@
 from app.services.llm_client import LLMClient
 
 
+SYSTEM_PROMPT = "扮演深耕恋爱心理领域的专家。开场向用户表明身份，告知用户可倾诉恋爱难题。"
+
+
 class ChatService:
     """Business service for chat use cases.
 
@@ -15,5 +18,9 @@ class ChatService:
 
     async def chat(self, message: str) -> str:
         """Convert a plain user message into model messages and call LLMClient."""
-        messages = [{"role": "user", "content": message}]
+        # Java 对照：这里等价于 ChatClient.builder(...).defaultSystem(SYSTEM_PROMPT)。
+        messages = [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": message},
+        ]
         return await self.llm_client.chat(messages)
