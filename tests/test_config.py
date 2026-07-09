@@ -9,6 +9,9 @@ def test_settings_reads_environment_variables(monkeypatch) -> None:
     monkeypatch.setenv("LLM_API_KEY", "sk-test-secret")
     monkeypatch.setenv("LLM_MODEL", "qwen-plus")
     monkeypatch.setenv("REQUEST_TIMEOUT_SECONDS", "30")
+    monkeypatch.setenv("CHAT_MEMORY_TYPE", "database")
+    monkeypatch.setenv("CHAT_MEMORY_MAX_MESSAGES", "8")
+    monkeypatch.setenv("DATABASE_URL", "sqlite:///./test_chat_memory.db")
 
     settings = Settings()
 
@@ -19,6 +22,9 @@ def test_settings_reads_environment_variables(monkeypatch) -> None:
     assert settings.llm_api_key == "sk-test-secret"
     assert settings.llm_model == "qwen-plus"
     assert settings.request_timeout_seconds == 30
+    assert settings.chat_memory_type == "database"
+    assert settings.chat_memory_max_messages == 8
+    assert settings.database_url == "sqlite:///./test_chat_memory.db"
 
 
 def test_mask_secret_hides_sensitive_value() -> None:
