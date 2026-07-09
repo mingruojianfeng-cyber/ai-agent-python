@@ -1,3 +1,4 @@
+from functools import lru_cache
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -10,6 +11,7 @@ from app.services.llm_client import LLMClientError
 router = APIRouter()
 
 
+@lru_cache
 def get_chat_service() -> ChatService:
     """FastAPI dependency provider.
 
@@ -31,7 +33,7 @@ async def chat(
     responses.
     """
     try:
-        answer = await service.chat(request.message)
+        answer = await service.chat(request.message, request.chat_id)
     except LLMClientError as exc:
         raise HTTPException(status_code=502, detail="Model provider request failed.") from exc
     return ChatResponse(answer=answer)

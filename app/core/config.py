@@ -30,6 +30,9 @@ class Settings(BaseSettings):
     llm_reasoning_effort: str = ""
     llm_extra_body_json: str = ""
     request_timeout_seconds: int = Field(default=60, ge=1)
+    chat_memory_type: str = "memory"
+    chat_memory_max_messages: int = Field(default=20, ge=1)
+    database_url: str = "sqlite:///./chat_memory.db"
 
     model_config = SettingsConfigDict(
         env_file=".env",
