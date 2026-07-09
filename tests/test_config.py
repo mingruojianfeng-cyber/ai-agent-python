@@ -11,7 +11,7 @@ def test_settings_reads_environment_variables(monkeypatch) -> None:
     monkeypatch.setenv("REQUEST_TIMEOUT_SECONDS", "30")
     monkeypatch.setenv("CHAT_MEMORY_TYPE", "database")
     monkeypatch.setenv("CHAT_MEMORY_MAX_MESSAGES", "8")
-    monkeypatch.setenv("DATABASE_URL", "sqlite:///./test_chat_memory.db")
+    monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://user:password@localhost:5432/yu_ai_agent")
 
     settings = Settings()
 
@@ -24,7 +24,7 @@ def test_settings_reads_environment_variables(monkeypatch) -> None:
     assert settings.request_timeout_seconds == 30
     assert settings.chat_memory_type == "database"
     assert settings.chat_memory_max_messages == 8
-    assert settings.database_url == "sqlite:///./test_chat_memory.db"
+    assert settings.database_url == "postgresql+asyncpg://user:password@localhost:5432/yu_ai_agent"
 
 
 def test_mask_secret_hides_sensitive_value() -> None:

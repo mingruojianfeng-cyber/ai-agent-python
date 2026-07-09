@@ -7,11 +7,10 @@ SYSTEM_PROMPT = "扮演深耕恋爱心理领域的专家。开场向用户表明
 
 
 class ChatService:
-    """Business service for chat use cases.
+    """聊天业务服务。
 
-    For Java developers: this is the Python counterpart of `LoveApp`. It is the
-    right place to add system prompts, memory, RAG, or tools later, while the API
-    router stays thin like a Spring `Controller`.
+    Java 开发者对照：这个类对应 Java 项目里的 `LoveApp`。系统提示词、会话记忆、
+    RAG、工具调用等业务能力都应该放在这里，API 路由保持像 Spring Controller 一样薄。
     """
 
     def __init__(
@@ -20,7 +19,7 @@ class ChatService:
         chat_memory: ChatMemory | None = None,
         max_messages: int | None = None,
     ) -> None:
-        """Accept optional dependencies for tests, similar to constructor injection."""
+        """支持测试时注入依赖，类似 Java 里的构造器注入。"""
         settings = get_settings()
         self.llm_client = llm_client or LLMClient()
         self.chat_memory = chat_memory or self._create_chat_memory(
@@ -30,7 +29,7 @@ class ChatService:
         self.max_messages = max_messages or settings.chat_memory_max_messages
 
     async def chat(self, message: str, chat_id: str = "default") -> str:
-        """Load conversation memory, call the model, then save the new turn."""
+        """加载会话记忆，调用模型，再保存当前轮次。"""
         history = await self.chat_memory.get_messages(chat_id, limit=self.max_messages)
         # Java 对照：这里等价于 defaultSystem(SYSTEM_PROMPT) + MessageWindowChatMemory。
         messages = [
