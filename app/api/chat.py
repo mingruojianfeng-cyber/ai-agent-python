@@ -11,6 +11,11 @@ router = APIRouter()
 
 
 def get_chat_service() -> ChatService:
+    """FastAPI dependency provider.
+
+    For Java developers: this is similar to asking Spring to inject a service
+    bean into a controller method.
+    """
     return ChatService()
 
 
@@ -19,6 +24,12 @@ async def chat(
     request: ChatRequest,
     service: Annotated[ChatService, Depends(get_chat_service)],
 ) -> ChatResponse:
+    """Handle POST /chat and delegate real business work to ChatService.
+
+    For Java developers: keep this layer like a Spring MVC controller: validate
+    request DTOs, call the service, and translate service errors into HTTP
+    responses.
+    """
     try:
         answer = await service.chat(request.message)
     except LLMClientError as exc:

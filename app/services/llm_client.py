@@ -13,19 +13,42 @@ logger = logging.getLogger("yu_ai_agent.llm")
 
 
 class OpenAICompatibleClientProtocol(Protocol):
+    """Minimal SDK shape LLMClient needs.
+
+    For Java developers: think of this as a tiny interface that lets tests pass a
+    fake implementation, similar to mocking a `ChatModel` bean.
+    """
+
     chat: Any
 
 
 class LLMClientError(Exception):
-    """Raised when the configured model provider call fails."""
+    """Project-level exception for model provider failures.
+
+    For Java developers: this is like wrapping vendor SDK exceptions into a
+    business exception before the controller maps it to an HTTP response.
+    """
 
 
 class LLMClient:
+    """Generic OpenAI-compatible model client.
+
+    For Java developers: this class is the Python equivalent of the part where
+    Spring AI `ChatClient` hides the concrete `ChatModel` provider. Controllers
+    and services should depend on this wrapper, not on DeepSeek, Bailian, or
+    Zhipu SDK details.
+    """
+
     def __init__(
         self,
         settings: Settings | None = None,
         client_factory: Callable[..., OpenAICompatibleClientProtocol] = AsyncOpenAI,
     ) -> None:
+        """Build the underlying SDK client from configuration.
+
+        `client_factory` is injectable so tests can use a fake client instead of
+        calling a real model provider, similar to constructor injection in Java.
+        """
         self.settings = settings or get_settings()
         if not self.settings.llm_base_url or not self.settings.llm_api_key:
             raise ValueError("LLM_BASE_URL and LLM_API_KEY must be configured.")
@@ -39,6 +62,12 @@ class LLMClient:
         )
 
     async def chat(self, messages: list[dict[str, str]]) -> str:
+        """Send a non-streaming chat request and return assistant text.
+
+        Java analogy: this corresponds to
+        `chatClient.prompt().user(...).call().chatResponse()` followed by reading
+        `getResult().getOutput().getText()`.
+        """
         started_at = time.perf_counter()
         try:
             response = await self._client.chat.completions.create(
@@ -59,6 +88,11 @@ class LLMClient:
         return content
 
     async def stream_chat(self, messages: list[dict[str, str]]) -> AsyncIterator[str]:
+        """Stream assistant text chunks from the model.
+
+        Java analogy: this is the Python async-iterator version of Spring AI's
+        `chatClient.prompt().user(...).stream().content()` returning `Flux`.
+        """
         try:
             stream = await self._client.chat.completions.create(
                 **self._completion_kwargs(messages=messages, stream=True)
@@ -73,6 +107,11 @@ class LLMClient:
             raise LLMClientError("Model provider stream request failed.") from exc
 
     def _completion_kwargs(self, *, messages: list[dict[str, str]], stream: bool) -> dict[str, Any]:
+        """Build provider request parameters in one place.
+
+        Java analogy: this method is a lightweight version of assembling
+        `ChatOptions`, keeping model-specific knobs out of the service layer.
+        """
         kwargs: dict[str, Any] = {
             "model": self.model,
             "messages": messages,

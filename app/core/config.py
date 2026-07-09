@@ -5,6 +5,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 def mask_secret(value: str) -> str:
+    """Mask secrets before logging, similar to hiding API keys in Java log output."""
     if not value:
         return ""
     if len(value) <= 8:
@@ -13,6 +14,13 @@ def mask_secret(value: str) -> str:
 
 
 class Settings(BaseSettings):
+    """Application settings loaded from environment variables.
+
+    For Java developers: this plays the role of `application.yml` plus
+    `@ConfigurationProperties` or `@Value`. Service code reads one typed object
+    instead of reaching into environment variables directly.
+    """
+
     app_name: str = "yu-ai-agent-python"
     app_env: str = "local"
     llm_provider: str = "openai-compatible"
@@ -31,9 +39,15 @@ class Settings(BaseSettings):
 
     @property
     def masked_llm_api_key(self) -> str:
+        """Return a log-safe API key, like a Java DTO field prepared for logging."""
         return mask_secret(self.llm_api_key)
 
 
 @lru_cache
 def get_settings() -> Settings:
+    """Return a singleton-like Settings instance.
+
+    For Java developers: this is close to letting Spring manage one config bean
+    and injecting that same bean wherever it is needed.
+    """
     return Settings()
