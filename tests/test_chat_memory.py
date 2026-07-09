@@ -34,9 +34,10 @@ async def test_in_memory_chat_memory_trims_old_messages() -> None:
 
 
 @pytest.mark.asyncio
-async def test_database_chat_memory_persists_and_trims_messages(tmp_path) -> None:
-    database_url = f"sqlite:///{tmp_path / 'chat_memory.db'}"
+async def test_database_chat_memory_persists_and_trims_messages_with_sqlite(tmp_path) -> None:
+    database_url = f"sqlite+aiosqlite:///{tmp_path / 'chat_memory.db'}"
     memory = DatabaseChatMemory(database_url=database_url)
+    await memory.init_schema()
 
     await memory.add_message("chat-a", "user", "第一条")
     await memory.add_message("chat-a", "assistant", "第二条")
@@ -53,3 +54,16 @@ async def test_database_chat_memory_persists_and_trims_messages(tmp_path) -> Non
     assert await reloaded_memory.get_messages("chat-b", limit=10) == [
         {"role": "user", "content": "另一段会话"},
     ]
+
+    await memory.close()
+    await reloaded_memory.close()
+
+
+@pytest.mark.asyncio
+async def test_database_chat_memory_accepts_postgresql_url() -> None:
+    memory = DatabaseChatMemory(
+        database_url="postgresql+asyncpg://user:password@localhost:5432/yu_ai_agent"
+    )
+
+    assert memory.engine.url.drivername == "postgresql+asyncpg"
+    await memory.close()

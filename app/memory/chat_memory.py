@@ -1,10 +1,25 @@
-import sqlite3
 from collections import defaultdict
-from pathlib import Path
 from typing import Protocol
+
+from sqlalchemy import Column, DateTime, Integer, MetaData, String, Table, Text, delete, func, insert, select
+from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async_engine
 
 
 ChatMessage = dict[str, str]
+
+metadata = MetaData()
+
+chat_messages = Table(
+    "chat_messages",
+    metadata,
+    # Java 开发者理解：这里等价于 JPA 实体里的 @Id，SQLite 会自动适配自增整数。
+    # PostgreSQL 上 SQLAlchemy 会生成 BIGSERIAL / identity 风格的自增列。
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("chat_id", String(128), nullable=False, index=True),
+    Column("role", String(32), nullable=False),
+    Column("content", Text, nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
+)
 
 
 class ChatMemory(Protocol):
@@ -40,82 +55,65 @@ class InMemoryChatMemory:
 
 
 class DatabaseChatMemory:
-    """基于 SQLite 的会话记忆，后续可替换为 MySQL/PostgreSQL 实现。"""
+    """基于 SQLAlchemy 的数据库会话记忆，支持 SQLite 和 PostgreSQL。"""
 
-    def __init__(self, database_url: str) -> None:
-        self.database_path = self._parse_sqlite_url(database_url)
-        self.database_path.parent.mkdir(parents=True, exist_ok=True)
-        self._init_schema()
+    def __init__(self, database_url: str, engine: AsyncEngine | None = None) -> None:
+        self.engine = engine or create_async_engine(database_url)
+        self.session_factory = async_sessionmaker(self.engine, expire_on_commit=False)
+        self._schema_initialized = False
+
+    async def init_schema(self) -> None:
+        """初始化表结构，类似 Spring Boot 启动时执行 schema 初始化。"""
+        async with self.engine.begin() as connection:
+            await connection.run_sync(metadata.create_all)
+        self._schema_initialized = True
 
     async def get_messages(self, chat_id: str, limit: int) -> list[ChatMessage]:
-        with self._connect() as connection:
-            rows = connection.execute(
-                """
-                SELECT role, content
-                FROM (
-                    SELECT id, role, content
-                    FROM chat_messages
-                    WHERE chat_id = ?
-                    ORDER BY id DESC
-                    LIMIT ?
-                )
-                ORDER BY id ASC
-                """,
-                (chat_id, limit),
-            ).fetchall()
-        return [{"role": row["role"], "content": row["content"]} for row in rows]
+        await self._ensure_schema()
+        latest_ids_query = (
+            select(chat_messages.c.id)
+            .where(chat_messages.c.chat_id == chat_id)
+            .order_by(chat_messages.c.id.desc())
+            .limit(limit)
+            .subquery()
+        )
+        query = (
+            select(chat_messages.c.role, chat_messages.c.content)
+            .where(chat_messages.c.id.in_(select(latest_ids_query.c.id)))
+            .order_by(chat_messages.c.id.asc())
+        )
+        async with self.session_factory() as session:
+            rows = (await session.execute(query)).all()
+        return [{"role": row.role, "content": row.content} for row in rows]
 
     async def add_message(self, chat_id: str, role: str, content: str) -> None:
-        with self._connect() as connection:
-            connection.execute(
-                "INSERT INTO chat_messages (chat_id, role, content) VALUES (?, ?, ?)",
-                (chat_id, role, content),
-            )
+        await self._ensure_schema()
+        query = insert(chat_messages).values(chat_id=chat_id, role=role, content=content)
+        async with self.session_factory() as session:
+            async with session.begin():
+                await session.execute(query)
 
     async def trim_messages(self, chat_id: str, max_messages: int) -> None:
-        with self._connect() as connection:
-            connection.execute(
-                """
-                DELETE FROM chat_messages
-                WHERE chat_id = ?
-                  AND id NOT IN (
-                      SELECT id
-                      FROM chat_messages
-                      WHERE chat_id = ?
-                      ORDER BY id DESC
-                      LIMIT ?
-                  )
-                """,
-                (chat_id, chat_id, max_messages),
-            )
+        await self._ensure_schema()
+        latest_ids_query = (
+            select(chat_messages.c.id)
+            .where(chat_messages.c.chat_id == chat_id)
+            .order_by(chat_messages.c.id.desc())
+            .limit(max_messages)
+            .subquery()
+        )
+        query = delete(chat_messages).where(
+            chat_messages.c.chat_id == chat_id,
+            chat_messages.c.id.not_in(select(latest_ids_query.c.id)),
+        )
+        async with self.session_factory() as session:
+            async with session.begin():
+                await session.execute(query)
 
-    def _init_schema(self) -> None:
-        with self._connect() as connection:
-            connection.execute(
-                """
-                CREATE TABLE IF NOT EXISTS chat_messages (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    chat_id TEXT NOT NULL,
-                    role TEXT NOT NULL,
-                    content TEXT NOT NULL,
-                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-                )
-                """
-            )
-            connection.execute(
-                """
-                CREATE INDEX IF NOT EXISTS idx_chat_messages_chat_id_id
-                ON chat_messages (chat_id, id)
-                """
-            )
+    async def close(self) -> None:
+        """释放连接池资源，类似关闭 DataSource。"""
+        await self.engine.dispose()
 
-    def _connect(self) -> sqlite3.Connection:
-        connection = sqlite3.connect(self.database_path)
-        connection.row_factory = sqlite3.Row
-        return connection
-
-    @staticmethod
-    def _parse_sqlite_url(database_url: str) -> Path:
-        if database_url.startswith("sqlite:///"):
-            return Path(database_url.removeprefix("sqlite:///"))
-        return Path(database_url)
+    async def _ensure_schema(self) -> None:
+        if not self._schema_initialized:
+            await self.init_schema()

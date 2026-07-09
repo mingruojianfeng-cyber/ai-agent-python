@@ -1,6 +1,6 @@
 import pytest
 
-from app.memory.chat_memory import InMemoryChatMemory
+from app.memory.chat_memory import DatabaseChatMemory, InMemoryChatMemory
 from app.services.chat_service import ChatService, SYSTEM_PROMPT
 
 
@@ -50,3 +50,15 @@ async def test_chat_service_trims_memory_after_saving_answer() -> None:
         {"role": "user", "content": "第二轮问题"},
         {"role": "assistant", "content": "模型回答"},
     ]
+
+
+@pytest.mark.asyncio
+async def test_chat_service_can_create_postgresql_database_memory() -> None:
+    memory = ChatService._create_chat_memory(
+        memory_type="database",
+        database_url="postgresql+asyncpg://user:password@localhost:5432/yu_ai_agent",
+    )
+
+    assert isinstance(memory, DatabaseChatMemory)
+    assert memory.engine.url.drivername == "postgresql+asyncpg"
+    await memory.close()
