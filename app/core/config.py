@@ -15,9 +15,12 @@ def mask_secret(value: str) -> str:
 class Settings(BaseSettings):
     app_name: str = "yu-ai-agent-python"
     app_env: str = "local"
+    llm_provider: str = "openai-compatible"
     llm_base_url: str = ""
     llm_api_key: str = ""
     llm_model: str = "qwen-plus"
+    llm_reasoning_effort: str = ""
+    llm_extra_body_json: str = ""
     request_timeout_seconds: int = Field(default=60, ge=1)
 
     model_config = SettingsConfigDict(
@@ -34,4 +37,3 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
-

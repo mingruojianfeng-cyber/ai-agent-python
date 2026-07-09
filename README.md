@@ -29,6 +29,25 @@ Fallback:
 .\.venv\Scripts\python -m uvicorn app.main:app --reload --port 8124
 ```
 
+## Configure LLM
+
+Create `.env` from `.env.example` and fill your provider settings. DeepSeek example:
+
+```env
+LLM_PROVIDER=deepseek
+LLM_BASE_URL=https://api.deepseek.com
+LLM_API_KEY=your-deepseek-api-key
+LLM_MODEL=deepseek-chat
+```
+
+Call the chat endpoint:
+
+```bash
+curl -X POST http://localhost:8124/chat ^
+  -H "Content-Type: application/json" ^
+  -d "{\"message\":\"你好，请用一句话介绍你自己\",\"chat_id\":\"demo\"}"
+```
+
 ## Test
 
 ```bash
@@ -40,4 +59,3 @@ Fallback:
 ```bash
 .\.venv\Scripts\python -m pytest
 ```
-
