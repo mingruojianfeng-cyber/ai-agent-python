@@ -87,6 +87,31 @@ class LLMClient:
             raise LLMClientError("Model provider returned empty content.")
         return content
 
+    async def chat_json(self, messages: list[dict[str, str]]) -> str:
+        """请求模型返回 JSON 对象文本，用于后续 Pydantic 结构化校验。"""
+        started_at = time.perf_counter()
+        try:
+            response = await self._client.chat.completions.create(
+                **self._completion_kwargs(
+                    messages=messages,
+                    stream=False,
+                    response_format={"type": "json_object"},
+                )
+            )
+        except OpenAIError as exc:
+            raise LLMClientError("Model provider JSON request failed.") from exc
+
+        elapsed_ms = int((time.perf_counter() - started_at) * 1000)
+        logger.info("llm_json provider=%s model=%s elapsed_ms=%s", self.provider, self.model, elapsed_ms)
+
+        if not response.choices:
+            raise LLMClientError("Model provider returned no choices.")
+
+        content = response.choices[0].message.content
+        if not content:
+            raise LLMClientError("Model provider returned empty content.")
+        return content
+
     async def stream_chat(self, messages: list[dict[str, str]]) -> AsyncIterator[str]:
         """Stream assistant text chunks from the model.
 
@@ -106,7 +131,13 @@ class LLMClient:
         except OpenAIError as exc:
             raise LLMClientError("Model provider stream request failed.") from exc
 
-    def _completion_kwargs(self, *, messages: list[dict[str, str]], stream: bool) -> dict[str, Any]:
+    def _completion_kwargs(
+        self,
+        *,
+        messages: list[dict[str, str]],
+        stream: bool,
+        response_format: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """Build provider request parameters in one place.
 
         Java analogy: this method is a lightweight version of assembling
@@ -117,6 +148,9 @@ class LLMClient:
             "messages": messages,
             "stream": stream,
         }
+
+        if response_format:
+            kwargs["response_format"] = response_format
 
         if self.settings.llm_reasoning_effort:
             kwargs["reasoning_effort"] = self.settings.llm_reasoning_effort

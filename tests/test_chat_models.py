@@ -31,20 +31,20 @@ def test_chat_response_contains_answer() -> None:
 
 def test_intent_classification_accepts_valid_intent() -> None:
     result = IntentClassification(
-        intent="query_order",
+        intent="rag_search",
         confidence=0.92,
-        entities={"order_id": "12345"},
+        entities={"keyword": "postgresql"},
     )
 
-    assert result.intent == "query_order"
+    assert result.intent == "rag_search"
     assert result.confidence == 0.92
-    assert result.entities["order_id"] == "12345"
+    assert result.entities["keyword"] == "postgresql"
 
 
 def test_intent_classification_rejects_invalid_confidence() -> None:
     with pytest.raises(ValidationError):
         IntentClassification(
-            intent="query_order",
+            intent="tool_call",
             confidence=1.5,
             entities={},
         )

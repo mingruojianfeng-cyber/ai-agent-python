@@ -4,13 +4,8 @@ from pydantic import BaseModel, Field
 
 
 class IntentClassification(BaseModel):
-    """Structured output DTO for later intent classification steps.
+    """面向后续 Agent 编排的结构化意图识别结果。"""
 
-    For Java developers: this is like a Java record returned by
-    `chatClient.call().entity(IntentClassification.class)`, with Pydantic doing
-    runtime validation.
-    """
-
-    intent: Literal["query_order", "query_weather", "chat", "unknown"]
+    intent: Literal["rag_search", "tool_call", "mcp_call", "yuagent_handoff", "chat", "unknown"]
     confidence: float = Field(ge=0, le=1)
     entities: dict[str, str] = Field(default_factory=dict)
