@@ -16,13 +16,34 @@ class FakeCompletion:
     choices = [FakeChoice()]
 
 
+class FakeDelta:
+    def __init__(self, content: str | None) -> None:
+        self.content = content
+
+
+class FakeStreamChoice:
+    def __init__(self, content: str | None) -> None:
+        self.delta = FakeDelta(content)
+
+
+class FakeStreamChunk:
+    def __init__(self, content: str | None) -> None:
+        self.choices = [FakeStreamChoice(content)]
+
+
 class FakeCompletions:
     def __init__(self) -> None:
         self.kwargs = None
 
     async def create(self, **kwargs):
         self.kwargs = kwargs
+        if kwargs["stream"]:
+            return self._stream()
         return FakeCompletion()
+
+    async def _stream(self):
+        for content in ["hello", None, " stream"]:
+            yield FakeStreamChunk(content)
 
 
 class FakeChat:
@@ -86,6 +107,33 @@ async def test_chat_sends_messages_and_returns_first_choice_content() -> None:
         "model": "deepseek-chat",
         "messages": [{"role": "user", "content": "Hello"}],
         "stream": False,
+    }
+
+
+@pytest.mark.asyncio
+async def test_stream_chat_sends_stream_request_and_yields_text_chunks() -> None:
+    settings = Settings(
+        llm_provider="deepseek",
+        llm_base_url="https://api.deepseek.com",
+        llm_api_key="sk-deepseek",
+        llm_model="deepseek-chat",
+        llm_reasoning_effort="",
+        llm_extra_body_json="",
+    )
+    fake_client = FakeOpenAICompatibleClient(
+        api_key=settings.llm_api_key,
+        base_url=settings.llm_base_url,
+        timeout=settings.request_timeout_seconds,
+    )
+    client = LLMClient(settings=settings, client_factory=lambda **_: fake_client)
+
+    chunks = [chunk async for chunk in client.stream_chat([{"role": "user", "content": "Hello"}])]
+
+    assert chunks == ["hello", " stream"]
+    assert fake_client.chat.completions.kwargs == {
+        "model": "deepseek-chat",
+        "messages": [{"role": "user", "content": "Hello"}],
+        "stream": True,
     }
 
 
