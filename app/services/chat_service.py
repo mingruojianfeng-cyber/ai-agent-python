@@ -1,3 +1,5 @@
+from collections.abc import AsyncIterator
+
 from app.core.config import get_settings
 from app.memory.chat_memory import ChatMemory, DatabaseChatMemory, InMemoryChatMemory
 from app.services.llm_client import LLMClient
@@ -30,20 +32,35 @@ class ChatService:
 
     async def chat(self, message: str, chat_id: str = "default") -> str:
         """加载会话记忆，调用模型，再保存当前轮次。"""
+        messages = await self._build_messages(message, chat_id)
+        answer = await self.llm_client.chat(messages)
+
+        await self._save_turn(chat_id, message, answer)
+        return answer
+
+    async def stream_chat(self, message: str, chat_id: str = "default") -> AsyncIterator[str]:
+        """加载会话记忆，流式调用模型，并在结束后保存完整回复。"""
+        messages = await self._build_messages(message, chat_id)
+
+        answer_chunks: list[str] = []
+        async for chunk in self.llm_client.stream_chat(messages):
+            answer_chunks.append(chunk)
+            yield chunk
+
+        await self._save_turn(chat_id, message, "".join(answer_chunks))
+
+    async def _build_messages(self, message: str, chat_id: str) -> list[dict[str, str]]:
         history = await self.chat_memory.get_messages(chat_id, limit=self.max_messages)
-        # Java 对照：这里等价于 defaultSystem(SYSTEM_PROMPT) + MessageWindowChatMemory。
-        messages = [
+        return [
             {"role": "system", "content": SYSTEM_PROMPT},
             *history,
             {"role": "user", "content": message},
         ]
-        answer = await self.llm_client.chat(messages)
 
+    async def _save_turn(self, chat_id: str, message: str, answer: str) -> None:
         await self.chat_memory.add_message(chat_id, "user", message)
         await self.chat_memory.add_message(chat_id, "assistant", answer)
         await self.chat_memory.trim_messages(chat_id, self.max_messages)
-
-        return answer
 
     @staticmethod
     def _create_chat_memory(memory_type: str, database_url: str) -> ChatMemory:
