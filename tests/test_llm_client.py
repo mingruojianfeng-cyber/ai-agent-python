@@ -111,6 +111,34 @@ async def test_chat_sends_messages_and_returns_first_choice_content() -> None:
 
 
 @pytest.mark.asyncio
+async def test_chat_json_requests_json_object_response() -> None:
+    settings = Settings(
+        llm_provider="deepseek",
+        llm_base_url="https://api.deepseek.com",
+        llm_api_key="sk-deepseek",
+        llm_model="deepseek-chat",
+        llm_reasoning_effort="",
+        llm_extra_body_json="",
+    )
+    fake_client = FakeOpenAICompatibleClient(
+        api_key=settings.llm_api_key,
+        base_url=settings.llm_base_url,
+        timeout=settings.request_timeout_seconds,
+    )
+    client = LLMClient(settings=settings, client_factory=lambda **_: fake_client)
+
+    answer = await client.chat_json([{"role": "user", "content": "只返回 JSON"}])
+
+    assert answer == "hello from model"
+    assert fake_client.chat.completions.kwargs == {
+        "model": "deepseek-chat",
+        "messages": [{"role": "user", "content": "只返回 JSON"}],
+        "stream": False,
+        "response_format": {"type": "json_object"},
+    }
+
+
+@pytest.mark.asyncio
 async def test_stream_chat_sends_stream_request_and_yields_text_chunks() -> None:
     settings = Settings(
         llm_provider="deepseek",

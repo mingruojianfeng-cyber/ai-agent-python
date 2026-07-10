@@ -5,7 +5,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 
 from app.schemas.chat import ChatRequest, ChatResponse
+from app.schemas.intent import IntentClassification
 from app.services.chat_service import ChatService
+from app.services.intent_service import IntentClassificationError, IntentService
 from app.services.llm_client import LLMClientError
 
 
@@ -19,6 +21,12 @@ def get_chat_service() -> ChatService:
     Java 开发者对照：这类似于让 Spring 把 service bean 注入到 Controller 方法里。
     """
     return ChatService()
+
+
+@lru_cache
+def get_intent_service() -> IntentService:
+    """提供意图识别服务实例，供 FastAPI 依赖注入复用。"""
+    return IntentService()
 
 
 @router.post("/chat", response_model=ChatResponse)
@@ -49,3 +57,15 @@ async def stream_chat(
             yield f"data: {chunk}\n\n"
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+
+@router.post("/classify-intent", response_model=IntentClassification)
+async def classify_intent(
+    request: ChatRequest,
+    service: Annotated[IntentService, Depends(get_intent_service)],
+) -> IntentClassification:
+    """把用户消息识别成 RAG、工具调用、MCP、YuAgent 委托或普通聊天意图。"""
+    try:
+        return await service.classify(request.message)
+    except IntentClassificationError as exc:
+        raise HTTPException(status_code=422, detail="Model structured output parse failed.") from exc
