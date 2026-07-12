@@ -42,6 +42,7 @@ class ChatService:
         """加载会话记忆，流式调用模型，并在结束后保存完整回复。"""
         messages = await self._build_messages(message, chat_id)
 
+        # 生成器执行到 yield 会暂停；消费完流后才继续保存完整答案。
         answer_chunks: list[str] = []
         async for chunk in self.llm_client.stream_chat(messages):
             answer_chunks.append(chunk)
@@ -50,6 +51,7 @@ class ChatService:
         await self._save_turn(chat_id, message, "".join(answer_chunks))
 
     async def _build_messages(self, message: str, chat_id: str) -> list[dict[str, str]]:
+        # *history 是可迭代解包，作用类似 Java Stream.concat 后 collect 成新列表。
         history = await self.chat_memory.get_messages(chat_id, limit=self.max_messages)
         return [
             {"role": "system", "content": SYSTEM_PROMPT},

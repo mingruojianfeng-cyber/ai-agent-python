@@ -11,6 +11,7 @@ class ToolNotFoundError(Exception):
 
 def get_tool_registry() -> dict[str, LocalTool]:
     """集中注册本地工具，类似 Java 版 ToolRegistration。"""
+    # 列表保留声明顺序，最终转换为字典后按工具名查找，类似 Spring 的 Bean 注册表。
     tools = [
         LocalTool(
             name="get_order_status",
@@ -40,5 +41,6 @@ def execute_tool(name: str, arguments: dict[str, Any]) -> str:
         raise ToolNotFoundError(f"Tool not found: {name}")
 
     tool = registry[name]
+    # 先把外部 JSON 校验并转换为 args_schema 实例，再交给真正的函数执行。
     args = tool.args_schema.model_validate(arguments)
     return tool.function(args)

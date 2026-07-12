@@ -16,6 +16,7 @@ class LocalTool(BaseModel):
 
     def to_openai_tool(self) -> dict[str, Any]:
         """转换成 OpenAI-compatible tools 参数所需的 function schema。"""
+        # args_schema 保存的是“参数模型的类”，不是实例；调用类方法即可生成 JSON Schema。
         parameters = self.args_schema.model_json_schema()
         parameters.pop("description", None)
         return {

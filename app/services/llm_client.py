@@ -68,6 +68,7 @@ class LLMClient:
         `chatClient.prompt().user(...).call().chatResponse()` followed by reading
         `getResult().getOutput().getText()`.
         """
+        # perf_counter 适合测量耗时，不是业务时间，也不应拿来生成时间戳。
         started_at = time.perf_counter()
         try:
             response = await self._client.chat.completions.create(
@@ -118,6 +119,7 @@ class LLMClient:
         Java analogy: this is the Python async-iterator version of Spring AI's
         `chatClient.prompt().user(...).stream().content()` returning `Flux`.
         """
+        # async for 会异步等待网络片段，对应 Java 响应式流中的逐项消费。
         try:
             stream = await self._client.chat.completions.create(
                 **self._completion_kwargs(messages=messages, stream=True)
@@ -143,6 +145,7 @@ class LLMClient:
         Java analogy: this method is a lightweight version of assembling
         `ChatOptions`, keeping model-specific knobs out of the service layer.
         """
+        # 用字典集中组装可选参数，避免供应商配置泄漏到上层 Service。
         kwargs: dict[str, Any] = {
             "model": self.model,
             "messages": messages,

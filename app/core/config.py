@@ -6,6 +6,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 def mask_secret(value: str) -> str:
     """Mask secrets before logging, similar to hiding API keys in Java log output."""
+    # 该函数只负责日志展示层脱敏，返回值不能当成真正密钥继续使用。
     if not value:
         return ""
     if len(value) <= 8:
@@ -34,6 +35,9 @@ class Settings(BaseSettings):
     chat_memory_max_messages: int = Field(default=20, ge=1)
     database_url: str = "sqlite+aiosqlite:///./chat_memory.db"
 
+    # Pydantic Settings 负责环境变量绑定、类型转换和校验。
+    # Java 对照：相当于 Spring Boot 的 @ConfigurationProperties。
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
@@ -53,4 +57,5 @@ def get_settings() -> Settings:
     For Java developers: this is close to letting Spring manage one config bean
     and injecting that same bean wherever it is needed.
     """
+    # 函数缓存实现进程内复用，类似单例 Bean，但不会跨进程共享对象。
     return Settings()

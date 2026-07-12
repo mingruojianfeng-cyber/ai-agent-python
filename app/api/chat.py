@@ -13,6 +13,8 @@ from app.services.llm_client import LLMClientError
 
 router = APIRouter()
 
+# Java 对照：APIRouter 类似 Spring MVC 中按功能拆分的 @RestController 路由集合。
+
 
 @lru_cache
 def get_chat_service() -> ChatService:
@@ -52,10 +54,12 @@ async def stream_chat(
 ) -> StreamingResponse:
     """处理 POST /chat/stream，并用 SSE 格式返回模型片段。"""
 
+    # 异步生成器会边收到模型片段边 yield，不必等待完整答案才开始响应。
     async def event_stream():
         async for chunk in service.stream_chat(request.message, request.chat_id):
             yield f"data: {chunk}\n\n"
 
+    # StreamingResponse 持续消费生成器，把每个 yield 的内容写入 SSE 响应。
     return StreamingResponse(event_stream(), media_type="text/event-stream")
 
 

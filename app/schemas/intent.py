@@ -9,3 +9,5 @@ class IntentClassification(BaseModel):
     intent: Literal["rag_search", "tool_call", "mcp_call", "yuagent_handoff", "chat", "unknown"]
     confidence: float = Field(ge=0, le=1)
     entities: dict[str, str] = Field(default_factory=dict)
+
+    # Literal 约束允许的字符串集合，类似 Java enum；Pydantic 会在反序列化时校验它。

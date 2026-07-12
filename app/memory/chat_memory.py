@@ -7,6 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async
 
 ChatMessage = dict[str, str]
 
+# 类型别名只描述数据形状；它不像 Java class 一样自带构造器和运行时行为。
+
 metadata = MetaData()
 
 chat_messages = Table(
@@ -39,6 +41,7 @@ class InMemoryChatMemory:
     """基于内存的会话记忆，类似 Java 的 InMemoryChatMemoryRepository。"""
 
     def __init__(self) -> None:
+        # defaultdict 在首次访问不存在的 chat_id 时自动创建空列表，类似 Map.computeIfAbsent。
         self._messages_by_chat_id: dict[str, list[ChatMessage]] = defaultdict(list)
 
     async def get_messages(self, chat_id: str, limit: int) -> list[ChatMessage]:
@@ -58,6 +61,7 @@ class DatabaseChatMemory:
     """基于 SQLAlchemy 的数据库会话记忆，支持 SQLite 和 PostgreSQL。"""
 
     def __init__(self, database_url: str, engine: AsyncEngine | None = None) -> None:
+        # engine 可从外部注入，便于测试复用内存数据库；未注入时才根据 URL 创建引擎。
         self.engine = engine or create_async_engine(database_url)
         self.session_factory = async_sessionmaker(self.engine, expire_on_commit=False)
         self._schema_initialized = False
@@ -82,6 +86,7 @@ class DatabaseChatMemory:
             .where(chat_messages.c.id.in_(select(latest_ids_query.c.id)))
             .order_by(chat_messages.c.id.asc())
         )
+        # session.begin() 负责事务提交与异常回滚，类似 Java 的 @Transactional 边界。
         async with self.session_factory() as session:
             rows = (await session.execute(query)).all()
         return [{"role": row.role, "content": row.content} for row in rows]

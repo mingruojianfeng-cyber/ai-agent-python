@@ -37,6 +37,8 @@ class IntentService:
         self.llm_client = llm_client or LLMClient()
 
     async def classify(self, message: str) -> IntentClassification:
+        # 最多尝试两次；第二次会使用更严格的提示词修正上次 Schema 校验失败。
+        # ValidationError 只在本方法内吸收，最终统一包装为领域异常交给 API 层。
         last_error: ValidationError | None = None
 
         for attempt in range(2):
