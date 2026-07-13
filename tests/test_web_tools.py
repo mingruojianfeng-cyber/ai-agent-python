@@ -1,6 +1,7 @@
 import json
 
 import httpx
+import pytest
 
 from app.tools.web import (
     DownloadResourceArgs,
@@ -10,6 +11,14 @@ from app.tools.web import (
     scrape_web_page,
     search_web,
 )
+
+
+@pytest.fixture(autouse=True)
+def mock_public_dns(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.tools.web._resolve_host_addresses",
+        lambda host: ["93.184.216.34"],
+    )
 
 
 def test_download_resource_writes_response(monkeypatch, tmp_path) -> None:
@@ -87,3 +96,59 @@ def test_download_resource_returns_error_on_network_failure(monkeypatch) -> None
     )
 
     assert result.startswith("下载资源失败：")
+
+
+def test_download_resource_rejects_private_network_url() -> None:
+    result = download_resource(
+        DownloadResourceArgs(url="http://127.0.0.1/private", file_name="a.bin")
+    )
+
+    assert result == "下载资源失败：URL 不安全"
+
+
+def test_scrape_web_page_rejects_non_http_url() -> None:
+    result = scrape_web_page(ScrapeWebPageArgs(url="file:///etc/passwd"))
+
+    assert result == "抓取网页失败：URL 不安全"
+
+
+def test_search_web_does_not_leak_api_key_in_http_error(monkeypatch) -> None:
+    secret = "search-test-secret"
+    monkeypatch.setattr(
+        "app.tools.web.get_settings",
+        lambda: type("Settings", (), {"search_api_key": secret})(),
+    )
+    monkeypatch.setattr(
+        "app.tools.web.httpx.get",
+        lambda *args, **kwargs: httpx.Response(
+            401,
+            request=httpx.Request(
+                "GET",
+                f"https://www.searchapi.io/api/v1/search?api_key={secret}",
+            ),
+        ),
+    )
+
+    result = search_web(SearchWebArgs(query="Python"))
+
+    assert result == "搜索失败：请求未成功"
+    assert secret not in result
+
+
+def test_download_resource_rejects_content_larger_than_limit(monkeypatch) -> None:
+    monkeypatch.setattr("app.tools.web.MAX_DOWNLOAD_BYTES", 3)
+    monkeypatch.setattr(
+        "app.tools.web.httpx.get",
+        lambda *args, **kwargs: httpx.Response(
+            200,
+            content=b"data",
+            headers={"Content-Length": "4"},
+            request=httpx.Request("GET", "https://example.com/a"),
+        ),
+    )
+
+    result = download_resource(
+        DownloadResourceArgs(url="https://example.com/a", file_name="a.bin")
+    )
+
+    assert result == "下载资源失败：资源超过大小限制"

@@ -5,7 +5,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 def mask_secret(value: str) -> str:
-    """Mask secrets before logging, similar to hiding API keys in Java log output."""
+    """在日志输出前脱敏密钥，避免泄露 API Key。"""
     # 该函数只负责日志展示层脱敏，返回值不能当成真正密钥继续使用。
     if not value:
         return ""
@@ -15,12 +15,7 @@ def mask_secret(value: str) -> str:
 
 
 class Settings(BaseSettings):
-    """Application settings loaded from environment variables.
-
-    For Java developers: this plays the role of `application.yml` plus
-    `@ConfigurationProperties` or `@Value`. Service code reads one typed object
-    instead of reaching into environment variables directly.
-    """
+    """从环境变量加载应用配置，作用类似 Java 的配置属性对象。"""
 
     app_name: str = "yu-ai-agent-python"
     app_env: str = "local"
@@ -47,16 +42,12 @@ class Settings(BaseSettings):
 
     @property
     def masked_llm_api_key(self) -> str:
-        """Return a log-safe API key, like a Java DTO field prepared for logging."""
+        """返回可安全写入日志的脱敏模型密钥。"""
         return mask_secret(self.llm_api_key)
 
 
 @lru_cache
 def get_settings() -> Settings:
-    """Return a singleton-like Settings instance.
-
-    For Java developers: this is close to letting Spring manage one config bean
-    and injecting that same bean wherever it is needed.
-    """
+    """返回进程内复用的配置实例。"""
     # 函数缓存实现进程内复用，类似单例 Bean，但不会跨进程共享对象。
     return Settings()

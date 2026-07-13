@@ -20,3 +20,17 @@ def test_resolve_tool_path_rejects_unsafe_file_name(file_name: str) -> None:
 def test_resolve_tmp_path_rejects_parent_directory() -> None:
     with pytest.raises(ValueError, match="路径不安全"):
         resolve_tmp_path("../pyproject.toml")
+
+
+def test_resolve_tool_path_rejects_category_link_to_outside_tmp(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr("app.tools.common.TMP_ROOT", tmp_path)
+    outside_directory = tmp_path.parent / "outside"
+    outside_directory.mkdir()
+    category_directory = tmp_path / "file"
+    try:
+        category_directory.symlink_to(outside_directory, target_is_directory=True)
+    except OSError:
+        pytest.skip("当前环境不允许创建符号链接")
+
+    with pytest.raises(ValueError, match="路径不安全"):
+        resolve_tool_path("file", "note.txt")

@@ -19,11 +19,19 @@ def resolve_tool_path(category: str, file_name: str) -> Path:
         or candidate.is_absolute()
     ):
         raise ValueError("文件名不安全")
-    return get_tool_tmp_dir(category) / candidate.name
+    path = get_tool_tmp_dir(category) / candidate.name
+    if path.is_symlink():
+        raise ValueError("路径不安全")
+    resolved_path = path.resolve(strict=False)
+    resolved_root = TMP_ROOT.resolve()
+    if resolved_root not in resolved_path.parents:
+        raise ValueError("路径不安全")
+    return resolved_path
 
 
 def resolve_tmp_path(relative_path: str) -> Path:
-    candidate = (TMP_ROOT / relative_path).resolve()
-    if candidate != TMP_ROOT and TMP_ROOT not in candidate.parents:
+    resolved_root = TMP_ROOT.resolve()
+    candidate = (resolved_root / relative_path).resolve()
+    if candidate != resolved_root and resolved_root not in candidate.parents:
         raise ValueError("路径不安全")
     return candidate
