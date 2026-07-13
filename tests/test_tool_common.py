@@ -34,3 +34,17 @@ def test_resolve_tool_path_rejects_category_link_to_outside_tmp(tmp_path, monkey
 
     with pytest.raises(ValueError, match="路径不安全"):
         resolve_tool_path("file", "note.txt")
+
+
+def test_resolve_tool_path_rejects_linked_tmp_root(tmp_path, monkeypatch) -> None:
+    outside_directory = tmp_path.parent / "outside-root"
+    outside_directory.mkdir()
+    linked_root = tmp_path / "linked-tmp"
+    try:
+        linked_root.symlink_to(outside_directory, target_is_directory=True)
+    except OSError:
+        pytest.skip("当前环境不允许创建符号链接")
+    monkeypatch.setattr("app.tools.common.TMP_ROOT", linked_root)
+
+    with pytest.raises(ValueError, match="临时目录不安全"):
+        resolve_tool_path("file", "note.txt")

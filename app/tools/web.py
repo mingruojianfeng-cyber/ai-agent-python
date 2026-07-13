@@ -69,7 +69,7 @@ def _is_response_too_large(response: httpx.Response) -> bool:
     content_length = response.headers.get("Content-Length")
     if content_length and int(content_length) > MAX_DOWNLOAD_BYTES:
         return True
-    return len(response.content) > MAX_DOWNLOAD_BYTES
+    return False
 
 
 def download_resource(args: DownloadResourceArgs) -> str:
@@ -77,13 +77,28 @@ def download_resource(args: DownloadResourceArgs) -> str:
     if not _is_safe_http_url(args.url):
         return "下载资源失败：URL 不安全"
     try:
-        response = httpx.get(args.url, timeout=HTTP_TIMEOUT_SECONDS, follow_redirects=False)
-        response.raise_for_status()
-        if _is_response_too_large(response):
-            return "下载资源失败：资源超过大小限制"
         path = resolve_tool_path("download", args.file_name)
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(response.content)
+        if resolve_tool_path("download", args.file_name) != path:
+            return "下载资源失败：路径不安全"
+        with httpx.stream(
+            "GET",
+            args.url,
+            timeout=HTTP_TIMEOUT_SECONDS,
+            follow_redirects=False,
+        ) as response:
+            response.raise_for_status()
+            if _is_response_too_large(response):
+                return "下载资源失败：资源超过大小限制"
+            downloaded_bytes = 0
+            with path.open("wb") as file:
+                for chunk in response.iter_bytes():
+                    downloaded_bytes += len(chunk)
+                    if downloaded_bytes > MAX_DOWNLOAD_BYTES:
+                        file.close()
+                        path.unlink(missing_ok=True)
+                        return "下载资源失败：资源超过大小限制"
+                    file.write(chunk)
         return f"资源下载成功：{path}"
     except (httpx.HTTPError, OSError, ValueError):
         return "下载资源失败：请求未成功"

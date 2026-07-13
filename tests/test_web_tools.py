@@ -23,14 +23,23 @@ def mock_public_dns(monkeypatch) -> None:
 
 def test_download_resource_writes_response(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr("app.tools.common.TMP_ROOT", tmp_path)
-    monkeypatch.setattr(
-        "app.tools.web.httpx.get",
-        lambda *args, **kwargs: httpx.Response(
-            200,
-            content=b"data",
-            request=httpx.Request("GET", "https://example.com/a"),
-        ),
-    )
+
+    class Response:
+        headers: dict[str, str] = {"Content-Length": "4"}
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            return False
+
+        def raise_for_status(self) -> None:
+            return None
+
+        def iter_bytes(self):
+            yield b"data"
+
+    monkeypatch.setattr("app.tools.web.httpx.stream", lambda *args, **kwargs: Response())
 
     result = download_resource(
         DownloadResourceArgs(url="https://example.com/a", file_name="a.bin")
@@ -89,7 +98,7 @@ def test_download_resource_returns_error_on_network_failure(monkeypatch) -> None
     def raise_network_error(*args, **kwargs):
         raise httpx.ConnectError("网络不可用")
 
-    monkeypatch.setattr("app.tools.web.httpx.get", raise_network_error)
+    monkeypatch.setattr("app.tools.web.httpx.stream", raise_network_error)
 
     result = download_resource(
         DownloadResourceArgs(url="https://example.com/a", file_name="a.bin")
@@ -137,15 +146,51 @@ def test_search_web_does_not_leak_api_key_in_http_error(monkeypatch) -> None:
 
 def test_download_resource_rejects_content_larger_than_limit(monkeypatch) -> None:
     monkeypatch.setattr("app.tools.web.MAX_DOWNLOAD_BYTES", 3)
-    monkeypatch.setattr(
-        "app.tools.web.httpx.get",
-        lambda *args, **kwargs: httpx.Response(
-            200,
-            content=b"data",
-            headers={"Content-Length": "4"},
-            request=httpx.Request("GET", "https://example.com/a"),
-        ),
+
+    class Response:
+        headers: dict[str, str] = {"Content-Length": "4"}
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            return False
+
+        def raise_for_status(self) -> None:
+            return None
+
+        def iter_bytes(self):
+            yield b"data"
+
+    monkeypatch.setattr("app.tools.web.httpx.stream", lambda *args, **kwargs: Response())
+
+    result = download_resource(
+        DownloadResourceArgs(url="https://example.com/a", file_name="a.bin")
     )
+
+    assert result == "下载资源失败：资源超过大小限制"
+
+
+def test_download_resource_stops_when_stream_exceeds_limit(monkeypatch) -> None:
+    monkeypatch.setattr("app.tools.web.MAX_DOWNLOAD_BYTES", 3)
+
+    class Response:
+        headers: dict[str, str] = {}
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            return False
+
+        def raise_for_status(self) -> None:
+            return None
+
+        def iter_bytes(self):
+            yield b"ab"
+            yield b"cd"
+
+    monkeypatch.setattr("app.tools.web.httpx.stream", lambda *args, **kwargs: Response())
 
     result = download_resource(
         DownloadResourceArgs(url="https://example.com/a", file_name="a.bin")
