@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     llm_model: str = "qwen-plus"
     llm_reasoning_effort: str = ""
     llm_extra_body_json: str = ""
+    search_api_key: str = ""
     request_timeout_seconds: int = Field(default=60, ge=1)
     chat_memory_type: str = "memory"
     chat_memory_max_messages: int = Field(default=20, ge=1)
