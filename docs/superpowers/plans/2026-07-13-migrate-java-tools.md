@@ -218,7 +218,11 @@ def test_download_resource_writes_response(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr("app.tools.common.TMP_ROOT", tmp_path)
     monkeypatch.setattr(
         "app.tools.web.httpx.get",
-        lambda *args, **kwargs: httpx.Response(200, content=b"data"),
+        lambda *args, **kwargs: httpx.Response(
+            200,
+            content=b"data",
+            request=httpx.Request("GET", "https://example.com/a"),
+        ),
     )
     result = download_resource(DownloadResourceArgs(url="https://example.com/a", file_name="a.bin"))
     assert "下载成功" in result
@@ -233,7 +237,9 @@ def test_search_web_returns_at_most_five_results(monkeypatch) -> None:
     monkeypatch.setattr(
         "app.tools.web.httpx.get",
         lambda *args, **kwargs: httpx.Response(
-            200, json={"organic_results": [{"n": index} for index in range(6)]}
+            200,
+            json={"organic_results": [{"n": index} for index in range(6)]},
+            request=httpx.Request("GET", "https://www.searchapi.io/api/v1/search"),
         ),
     )
     assert search_web(SearchWebArgs(query="Python")) == '[{"n": 0}, {"n": 1}, {"n": 2}, {"n": 3}, {"n": 4}]'
