@@ -1,7 +1,6 @@
 from types import SimpleNamespace
 
 import pytest
-from pygments.lexers import data
 
 from app.core.config import Settings
 from app.rag.embedding_client import EmbeddingClient, EmbeddingClientError

@@ -35,21 +35,25 @@ def get_chat_service() -> ChatService:
     Java 开发者对照：这类似于让 Spring 把 service bean 注入到 Controller 方法里。
     """
     # FastAPI 调用此函数并将结果注入标注 Depends 的参数。
+    return ChatService()
+
+
+@lru_cache
+def get_rag_retriever() -> VectorRetriever | None:
+    """按需创建 RAG 检索器，避免普通聊天初始化向量检索依赖。"""
     settings = get_settings()
-    retriever = None
+    if not settings.rag_enabled:
+        return None
 
-    if settings.rag_enabled:
-        vector_store = PgVectorStore(
-            database_url=settings.database_url,
-            embedding_dimensions=settings.embedding_dimensions,
-        )
-        retriever = VectorRetriever(
-            embedding_client=EmbeddingClient(settings=settings),
-            vector_store=vector_store,
-            min_score=settings.rag_min_score,
-        )
-
-    return ChatService(retriever=retriever)
+    vector_store = PgVectorStore(
+        database_url=settings.database_url,
+        embedding_dimensions=settings.embedding_dimensions,
+    )
+    return VectorRetriever(
+        embedding_client=EmbeddingClient(settings=settings),
+        vector_store=vector_store,
+        min_score=settings.rag_min_score,
+    )
 
 
 # 意图识别服务也作为进程内单例复用。
@@ -78,10 +82,12 @@ async def chat(
     try:
         if request.knowledge_base_id is not None:
             try:
+                retriever = get_rag_retriever()
                 result = await service.chat_with_rag(
                     message=request.message,
                     chat_id=request.chat_id,
                     knowledge_base_id=str(request.knowledge_base_id),
+                    retriever=retriever,
                 )
             except RetrievalError as exc:
                 raise HTTPException(

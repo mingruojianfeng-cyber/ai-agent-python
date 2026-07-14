@@ -89,32 +89,32 @@ class ChatService:
         message: str,
         chat_id: str,
         knowledge_base_id: str,
+        retriever: Retriever | None = None,
     ) -> ChatResult:
         """携带知识库上下文的聊天。"""
 
-        if self.retriever is None:
-            answer = RAG_NO_ANSWER
-            await self._save_turn(chat_id, message, answer)
-            return ChatResult(answer=answer)
+        active_retriever = retriever or self.retriever
+        if active_retriever is None:
+            return ChatResult(answer=RAG_NO_ANSWER)
 
-        chunks = await self.retriever.retrieve(
+        rag_chat_id = f"{chat_id}:kb:{knowledge_base_id}"
+
+        chunks = await active_retriever.retrieve(
             query=message,
             knowledge_base_id=knowledge_base_id,
             top_k=get_settings().rag_top_k,
         )
 
         if not chunks:
-            answer = RAG_NO_ANSWER
-            await self._save_turn(chat_id, message, answer)
-            return ChatResult(answer=answer)
+            return ChatResult(answer=RAG_NO_ANSWER)
 
         messages = await self._build_messages(
             message=message,
-            chat_id=chat_id,
+            chat_id=rag_chat_id,
             retrieved_chunks=chunks,
         )
         answer = await self.llm_client.chat(messages)
-        await self._save_turn(chat_id, message, answer)
+        await self._save_turn(rag_chat_id, message, answer)
 
         sources = tuple(
             ChatSource(
@@ -132,10 +132,7 @@ class ChatService:
         # *history 是可迭代解包，作用类似 Java Stream.concat 后 collect 成新列表。
         # 记忆实现已按窗口读取最近消息，避免把全部历史都发给模型。
         history = await self.chat_memory.get_messages(chat_id, limit=self.max_messages)
-        messages = [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            *history,
-        ]
+        messages = [{"role": "system", "content": SYSTEM_PROMPT}]
 
         if retrieved_chunks:
             messages.append(
@@ -145,6 +142,7 @@ class ChatService:
                 }
             )
 
+        messages.extend(history)
         messages.append({"role": "user", "content": message})
         return messages
 
