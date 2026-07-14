@@ -19,7 +19,7 @@ def test_resolve_tool_path_rejects_unsafe_file_name(file_name: str) -> None:
 
 def test_resolve_tmp_path_rejects_parent_directory() -> None:
     with pytest.raises(ValueError, match="路径不安全"):
-        resolve_tmp_path("../pyproject.toml")
+        resolve_tmp_path("../../pyproject.toml")
 
 
 def test_resolve_tool_path_rejects_category_link_to_outside_tmp(tmp_path, monkeypatch) -> None:

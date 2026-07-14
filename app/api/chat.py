@@ -1,10 +1,12 @@
 # 缓存依赖工厂的返回值，使 Service 在当前进程内被复用。
 from functools import lru_cache
+
 # Annotated 将“Python 类型”和“FastAPI 注入元数据”放在同一个参数声明中。
 from typing import Annotated
 
 # Depends 声明依赖注入，HTTPException 用于转换为受控 HTTP 错误响应。
 from fastapi import APIRouter, Depends, HTTPException
+
 # StreamingResponse 支持边生成边写出响应，适合大模型逐 token 输出。
 from fastapi.responses import StreamingResponse
 
@@ -14,6 +16,10 @@ from app.services.chat_service import ChatService
 from app.services.intent_service import IntentClassificationError, IntentService
 from app.services.llm_client import LLMClientError
 
+from app.core.config import get_settings
+from app.rag.embedding_client import EmbeddingClient
+from app.rag.retriever import RetrievalError, VectorRetriever
+from app.rag.vector_store import PgVectorStore
 
 # 当前模块的聊天 Controller 路由集合。
 router = APIRouter()
@@ -29,7 +35,21 @@ def get_chat_service() -> ChatService:
     Java 开发者对照：这类似于让 Spring 把 service bean 注入到 Controller 方法里。
     """
     # FastAPI 调用此函数并将结果注入标注 Depends 的参数。
-    return ChatService()
+    settings = get_settings()
+    retriever = None
+
+    if settings.rag_enabled:
+        vector_store = PgVectorStore(
+            database_url=settings.database_url,
+            embedding_dimensions=settings.embedding_dimensions,
+        )
+        retriever = VectorRetriever(
+            embedding_client=EmbeddingClient(settings=settings),
+            vector_store=vector_store,
+            min_score=settings.rag_min_score,
+        )
+
+    return ChatService(retriever=retriever)
 
 
 # 意图识别服务也作为进程内单例复用。
@@ -40,7 +60,11 @@ def get_intent_service() -> IntentService:
 
 
 # response_model 同时约束输出序列化格式并生成 OpenAPI 响应文档。
-@router.post("/chat", response_model=ChatResponse)
+@router.post(
+    "/chat",
+    response_model=ChatResponse,
+    response_model_exclude_none=True,
+)
 async def chat(
     # FastAPI 自动从 JSON 请求体构建并校验 ChatRequest。
     request: ChatRequest,
@@ -52,6 +76,24 @@ async def chat(
     Java 开发者对照：这一层像 Spring MVC Controller，只做 DTO 校验、调用服务和转换异常。
     """
     try:
+        if request.knowledge_base_id is not None:
+            try:
+                result = await service.chat_with_rag(
+                    message=request.message,
+                    chat_id=request.chat_id,
+                    knowledge_base_id=str(request.knowledge_base_id),
+                )
+            except RetrievalError as exc:
+                raise HTTPException(
+                    status_code=502,
+                    detail="Knowledge base retrieval failed.",
+                ) from exc
+
+            return ChatResponse(
+                answer=result.answer,
+                sources=list(result.sources) or None,
+            )
+
         # await 让出事件循环，等待模型网络请求完成后恢复执行。
         answer = await service.chat(request.message, request.chat_id)
     except LLMClientError as exc:
@@ -92,4 +134,6 @@ async def classify_intent(
         return await service.classify(request.message)
     except IntentClassificationError as exc:
         # 422 表示模型返回了文本，但其内容无法满足约定的业务数据结构。
-        raise HTTPException(status_code=422, detail="Model structured output parse failed.") from exc
+        raise HTTPException(
+            status_code=422, detail="Model structured output parse failed."
+        ) from exc

@@ -3,6 +3,7 @@ from functools import lru_cache
 
 # Field 为 DTO/配置字段附加默认值和校验规则。
 from pydantic import Field
+
 # BaseSettings 负责从环境变量读取配置；SettingsConfigDict 配置其读取行为。
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -38,6 +39,19 @@ class Settings(BaseSettings):
     chat_memory_type: str = "memory"
     chat_memory_max_messages: int = Field(default=20, ge=1)
     database_url: str = "sqlite+aiosqlite:///./chat_memory.db"
+
+    # 必须与 pgvector 表的 vector(N) 维度一致。
+    embedding_dimensions: int = Field(default=1536, ge=1, le=8192)
+    rag_top_k: int = Field(default=5, ge=1, le=20)
+    # rag是否开启，保证现有聊天流程是否开启
+    rag_enabled: bool = False
+    # 配置embedding模型
+    embedding_base_url: str = ""
+    embedding_api_key: str = ""
+    embedding_model: str = ""
+
+    # 命中片段低于该相似度时，不允许作为知识库依据回答。
+    rag_min_score: float = Field(default=0.45, ge=0, le=1)
 
     # Pydantic Settings 负责环境变量绑定、类型转换和校验。
     # Java 对照：相当于 Spring Boot 的 @ConfigurationProperties。

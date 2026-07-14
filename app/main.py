@@ -6,6 +6,8 @@ from app.api.chat import router as chat_router
 # 导入健康检查路由，用于负载均衡器或部署平台探活。
 from app.api.health import router as health_router
 
+from app.api.knowledge import router as knowledge_router
+
 
 # 创建 ASGI 应用实例；Uvicorn 通过 `app.main:app` 找到的正是这个变量。
 app = FastAPI(
@@ -20,3 +22,5 @@ app = FastAPI(
 # 将各功能模块的路由表挂载到应用，作用接近 Spring 扫描并注册 Controller 的 RequestMapping。
 app.include_router(health_router)
 app.include_router(chat_router)
+
+app.include_router(knowledge_router)

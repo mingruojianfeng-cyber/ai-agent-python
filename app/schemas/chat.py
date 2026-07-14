@@ -1,6 +1,10 @@
 # BaseModel 提供解析和校验；ConfigDict 配置模型；Field 描述单个字段约束。
 from pydantic import BaseModel, ConfigDict, Field
 
+from uuid import UUID
+
+from app.rag.schemas import ChatSource
+
 
 class ChatRequest(BaseModel):
     """POST /chat 的请求 DTO，类似 Java record 加 @NotBlank、@Size 校验。"""
@@ -22,9 +26,16 @@ class ChatRequest(BaseModel):
     # 既接受 JSON 中的 chatId，也接受 Python 字段名 chat_id。
     model_config = ConfigDict(populate_by_name=True)
 
+    knowledge_base_id: UUID | None = Field(
+        default=None,
+        alias="knowledgeBaseId",
+        description="Optional knowledge base used for RAG retrieval.",
+    )
+
 
 class ChatResponse(BaseModel):
     """POST /chat 的响应 DTO，类似只含 answer 字段的 Java response record。"""
 
     # 仅声明类型即可让 Pydantic 在构造和序列化时处理该响应字段。
     answer: str
+    sources: list[ChatSource] | None = None
