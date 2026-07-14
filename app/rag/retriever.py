@@ -1,8 +1,15 @@
+import logging
+from time import perf_counter
 from typing import Protocol
+
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.rag.embedding_client import EmbeddingClient, EmbeddingClientError
 from app.rag.schemas import RetrievedChunk
 from app.rag.vector_store import PgVectorStore
+
+
+logger = logging.getLogger("yu_ai_agent.rag")
 
 
 class RetrievalError(Exception):
@@ -37,6 +44,7 @@ class VectorRetriever:
         knowledge_base_id: str,
         top_k: int,
     ) -> list[RetrievedChunk]:
+        started_at = perf_counter()
         try:
             vectors = await self.embedding_client.embed([query])
         except EmbeddingClientError as exc:
@@ -45,14 +53,32 @@ class VectorRetriever:
         if len(vectors) != 1:
             raise RetrievalError("Embedding provider returned unexpected query vectors.")
 
-        chunks = await self.vector_store.search_vector(
-            knowledge_base_id=knowledge_base_id,
-            query_embedding=vectors[0],
-            limit=top_k,
-        )
+        try:
+            chunks = await self.vector_store.search_vector(
+                knowledge_base_id=knowledge_base_id,
+                query_embedding=vectors[0],
+                limit=top_k,
+            )
+        except SQLAlchemyError as exc:
+            logger.exception(
+                "rag_vector_search_failed knowledge_base_id=%s top_k=%s",
+                knowledge_base_id,
+                top_k,
+            )
+            raise RetrievalError("Failed to execute vector search.") from exc
 
-        return [
+        accepted_chunks = [
             chunk
             for chunk in chunks
             if chunk.score >= self.min_score
         ]
+        elapsed_ms = round((perf_counter() - started_at) * 1000)
+        logger.info(
+            "rag_retrieval knowledge_base_id=%s retrieved=%s accepted=%s scores=%s elapsed_ms=%s",
+            knowledge_base_id,
+            len(chunks),
+            len(accepted_chunks),
+            [round(chunk.score, 4) for chunk in chunks],
+            elapsed_ms,
+        )
+        return accepted_chunks
