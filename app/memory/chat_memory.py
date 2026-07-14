@@ -1,10 +1,24 @@
 # defaultdict 允许按会话 ID 懒创建消息列表。
 from collections import defaultdict
+
 # Protocol 声明“鸭子类型”接口，实现类不必显式继承它。
 from typing import Protocol
 
 # SQLAlchemy Core 用表对象和查询表达式代替手写 SQL，下面导入建表、查询、插入和删除能力。
-from sqlalchemy import Column, DateTime, Integer, MetaData, String, Table, Text, delete, func, insert, select
+from sqlalchemy import (
+    Column,
+    DateTime,
+    Integer,
+    MetaData,
+    String,
+    Table,
+    Text,
+    delete,
+    func,
+    insert,
+    select,
+)
+
 # 异步引擎与会话工厂使数据库 I/O 可 await，不阻塞 FastAPI 事件循环。
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async_engine
 

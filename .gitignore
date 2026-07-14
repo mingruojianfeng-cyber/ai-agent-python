@@ -8,3 +8,6 @@ __pycache__/
 chat_memory.db
 docs/
 .vscode/
+.aiassistant/
+yu_ai_agent_python.egg-info/
+.idea/
